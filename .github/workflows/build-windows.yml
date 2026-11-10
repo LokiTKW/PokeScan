@@ -1,0 +1,53 @@
+# Builds the Windows installer (.exe) and portable .zip.
+# - on every push / pull request: the files are attached to the workflow run (Actions tab → run → Artifacts)
+# - when you publish a GitHub Release: the files are also added to that release
+name: Build Windows app
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Package (installer + zip)
+        run: npx electron-builder --win nsis zip --x64 --publish never
+
+      - name: Keep the files with this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: PokeScan2-windows
+          path: |
+            release/*.exe
+            release/*.zip
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = Get-ChildItem release -File | Where-Object { $_.Extension -in '.exe', '.zip' } | ForEach-Object { $_.FullName }
+          gh release upload "${{ github.event.release.tag_name }}" $files --clobber

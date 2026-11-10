@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#07070d">
+<title>PokéScan 2 – telefon</title>
+<style>
+  :root {
+    --holo: linear-gradient(115deg,#ff6b9d,#ffd66b 22%,#6bffb8 44%,#6bc5ff 66%,#b56bff 88%,#ff6b9d);
+    --red: #ff4d6d; --yellow: #ffd23f; --green: #3ee6a0;
+    --c: var(--red);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { background: #07070d; }
+  body { margin: 0; font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color: #f3f3fa; min-height: 100vh; overflow-x: hidden; }
+  button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+  [hidden] { display: none !important; }
+
+  /* ---------- live camera ---------- */
+  #live { position: relative; height: 100svh; min-height: 520px; display: flex; flex-direction: column; background: #000; }
+  .stage { position: relative; flex: 1; overflow: hidden; }
+  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  .guide { position: absolute; border-radius: 22px; border: 3px solid var(--c);
+    box-shadow: 0 0 0 100vmax rgba(4,4,10,.58), 0 0 26px 2px var(--c), inset 0 0 22px -4px var(--c);
+    transition: border-color .25s, box-shadow .25s; pointer-events: none; }
+  .guide[data-state="red"] { --c: var(--red); }
+  .guide[data-state="yellow"] { --c: var(--yellow); }
+  .guide[data-state="green"] { --c: var(--green); }
+  .guide[data-state="green"] { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 100vmax rgba(4,4,10,.58), 0 0 44px 8px var(--c), inset 0 0 30px -2px var(--c); } }
+  .guide .corner { position: absolute; width: 34px; height: 34px; border: 5px solid #fff; opacity: .9; }
+  .guide .tl { top: -9px; left: -9px; border-right: 0; border-bottom: 0; border-top-left-radius: 26px; }
+  .guide .tr { top: -9px; right: -9px; border-left: 0; border-bottom: 0; border-top-right-radius: 26px; }
+  .guide .bl { bottom: -9px; left: -9px; border-right: 0; border-top: 0; border-bottom-left-radius: 26px; }
+  .guide .br { bottom: -9px; right: -9px; border-left: 0; border-top: 0; border-bottom-right-radius: 26px; }
+  .guide .scan { position: absolute; left: 6%; right: 6%; height: 2px; top: 0; border-radius: 2px; background: var(--c); box-shadow: 0 0 14px 3px var(--c); opacity: .75; animation: scan 2.4s ease-in-out infinite; }
+  .guide[data-state="green"] .scan { display: none; }
+  @keyframes scan { 0%, 100% { top: 8%; } 50% { top: 90%; } }
+  .guide .numzone { position: absolute; left: 4%; right: 4%; bottom: 2.5%; height: 8%; border-radius: 8px; border: 1.5px dashed rgba(255,255,255,.35); }
+  .topbar { position: absolute; top: 0; left: 0; right: 0; padding: max(12px, env(safe-area-inset-top)) 14px 10px; display: flex; align-items: center; gap: 10px; background: linear-gradient(rgba(0,0,0,.6), transparent); }
+  .mark { width: 32px; height: 32px; flex: none; border-radius: 11px; background: var(--holo); background-size: 200% 200%; animation: shift 6s linear infinite; position: relative; }
+  .mark::after { content: ''; position: absolute; inset: 3px; border-radius: 8px; background: #0b0b14; }
+  .mark::before { content: ''; position: absolute; z-index: 2; width: 9px; height: 9px; border-radius: 50%; left: 50%; top: 50%; transform: translate(-50%,-50%); background: #fff; box-shadow: 0 0 0 2px #0b0b14, 0 0 0 4px #fff; }
+  @keyframes shift { to { background-position: 200% 50%; } }
+  .brand { font-weight: 800; letter-spacing: -0.02em; font-size: 17px; }
+  .pill { margin-left: auto; display: flex; align-items: center; gap: 7px; font-size: 12px; color: #d6d6e6; padding: 6px 11px; border-radius: 99px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .led { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(62,230,160,.2); }
+  .led.off { background: var(--red); box-shadow: 0 0 0 3px rgba(255,77,109,.2); }
+  .hint { position: absolute; left: 50%; transform: translateX(-50%); width: max-content; max-width: 92%; text-align: center; padding: 10px 16px; border-radius: 16px; background: rgba(8,8,16,.72); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: border-color .25s; }
+  .hint b { display: block; font-size: 15.5px; font-weight: 750; }
+  .hint small { display: block; font-size: 12px; color: #a9a9c2; margin-top: 2px; }
+  .hint .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 7px; vertical-align: 1px; box-shadow: 0 0 10px var(--c); }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .flash.on { animation: flash .45s ease-out; }
+  @keyframes flash { 0% { opacity: .85; } 100% { opacity: 0; } }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; color: #a9a9c2; font-size: 14px; text-align: center; padding: 30px; }
+  .debug { position: absolute; left: 8px; bottom: 8px; font: 10.5px/1.35 ui-monospace, monospace; background: rgba(0,0,0,.6); padding: 6px 8px; border-radius: 8px; white-space: pre; }
+
+  .controls { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 14px 22px max(16px, env(safe-area-inset-bottom)); background: #07070d; }
+  .side { display: flex; align-items: center; gap: 12px; font-size: 10.5px; color: #a9a9c2; }
+  .side.left { justify-self: start; } .side.right { justify-self: end; }
+  .side .col { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 15px; }
+  .side button { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); transition: background .2s, color .2s; }
+  .side button.on { background: rgba(62,230,160,.16); border-color: rgba(62,230,160,.45); color: var(--green); }
+  .side button.torch.on { background: rgba(255,210,63,.18); border-color: rgba(255,210,63,.5); color: var(--yellow); }
+  .side button:disabled { opacity: .3; }
+  .side svg { width: 22px; height: 22px; }
+  .shutter { --p: 0; position: relative; width: 82px; height: 82px; border-radius: 50%; display: grid; place-items: center;
+    background: conic-gradient(var(--green) calc(var(--p) * 360deg), rgba(255,255,255,.22) 0); transition: transform .12s, opacity .2s; }
+  .shutter::after { content: ''; width: 66px; height: 66px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 4px #07070d; transition: background .2s; }
+  .shutter[data-state="yellow"]::after { background: #fff3c4; }
+  .shutter[data-state="green"]::after { background: #d8ffef; }
+  .shutter:active { transform: scale(.93); }
+  .shutter:disabled { opacity: .35; }
+  .side .last { width: 52px; height: 52px; border-radius: 12px; display: block; padding: 0; }
+  .last { width: 48px; height: 48px; border-radius: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,.18); background: rgba(255,255,255,.05); position: relative; }
+  .last img { width: 100%; height: 100%; object-fit: cover; }
+  .last .count { position: absolute; top: -1px; right: -1px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--green); color: #052; font-size: 11px; font-weight: 800; display: grid; place-items: center; }
+
+  /* ---------- below the camera ---------- */
+  main { max-width: 480px; margin: 0 auto; padding: 20px 18px 40px; }
+  .classic { margin-top: 6px; }
+  .note { font-size: 13px; color: #c9c9da; line-height: 1.5; background: rgba(255,210,63,.08); border: 1px solid rgba(255,210,63,.25); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+  label.shoot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; width: 100%; aspect-ratio: 63/70; border-radius: 26px; background: rgba(255,255,255,.035); color: #fff; font-size: 21px; font-weight: 800; cursor: pointer; user-select: none; overflow: hidden; border: 1px solid rgba(255,255,255,.1); }
+  label.shoot::before { content: ''; position: absolute; inset: 22% 28%; border-radius: 12px; border: 2px dashed rgba(255,255,255,.25); }
+  label.shoot .btn { position: relative; z-index: 1; width: 86px; height: 86px; border-radius: 50%; background: var(--holo); background-size: 200% 200%; animation: shift 5s linear infinite; display: grid; place-items: center; }
+  label.shoot .btn::after { content: ''; width: 64px; height: 64px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 4px #0b0b14; }
+  label.shoot span, label.shoot small { position: relative; z-index: 1; }
+  label.shoot small { font-size: 13px; font-weight: 500; color: #a9a9c2; text-align: center; padding: 0 30px; }
+  input[type=file] { display: none; }
+  .gallery { display: block; text-align: center; margin-top: 4px; color: #a9a9c2; font-size: 14px; cursor: pointer; padding: 10px; border-radius: 12px; }
+  .gallery:active { background: rgba(255,255,255,.05); }
+  h2 { font-size: 12px; color: #6d6d88; text-transform: uppercase; letter-spacing: .09em; margin: 18px 0 10px; }
+  ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  li { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07); border-radius: 14px; padding: 8px; animation: rise .3s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  li img { width: 42px; height: 58px; object-fit: cover; border-radius: 7px; background: #000; }
+  li .t { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; }
+  li .s { font-size: 12.5px; color: #8b8ba6; margin-top: 2px; font-weight: 500; }
+  li.done .s { color: var(--green); }
+  li.error .s { color: #ffb36b; }
+  li.pending .n::after { content: ''; display: inline-block; width: 10px; height: 10px; margin-left: 8px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); border-top-color: #fff; animation: spin .8s linear infinite; vertical-align: -1px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { color: #6d6d88; font-size: 13px; }
+  .legend { display: grid; gap: 8px; margin-top: 24px; font-size: 13px; color: #a9a9c2; }
+  .legend div { display: flex; gap: 10px; align-items: flex-start; }
+  .legend i { flex: none; width: 12px; height: 12px; border-radius: 4px; margin-top: 3px; }
+  .tips { color: #6d6d88; font-size: 12.5px; line-height: 1.55; margin-top: 20px; }
+  .tips b { color: #a9a9c2; }
+</style>
+</head>
+<body>
+
+<section id="live" hidden>
+  <div class="stage" id="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <div class="guide" id="guide" data-state="red">
+      <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+      <div class="scan"></div>
+      <div class="numzone"></div>
+    </div>
+    <div class="topbar">
+      <div class="mark"></div><div class="brand">PokéScan</div>
+      <div class="pill"><span class="led" id="led"></span><span id="conn">Połączono</span></div>
+    </div>
+    <div class="hint" id="hintBox"><b><span class="dot"></span><span id="hint">Uruchamianie aparatu…</span></b><small id="hint2">Zezwól na dostęp do aparatu</small></div>
+    <div class="flash" id="flash"></div>
+    <div class="debug" id="debug" hidden></div>
+  </div>
+  <div class="controls">
+    <div class="side left">
+      <div class="col"><button class="torch" id="torch" disabled aria-label="Latarka"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6c0 2-2 2-2 4v10a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10c0-2-2-2-2-4V2h12z"/><path d="M6 6h12"/><path d="M12 12v2"/></svg></button><span>Latarka</span></div>
+      <div class="col"><button id="auto" class="on" aria-label="Zdjęcie automatyczne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/></svg></button><span id="autoLabel">Auto</span></div>
+    </div>
+    <button class="shutter" id="shutter" data-state="red" disabled aria-label="Zrób zdjęcie"></button>
+    <div class="side right">
+      <button class="last" id="last" aria-label="Wysłane zdjęcia"></button>
+    </div>
+  </div>
+</section>
+
+<main>
+  <div id="classic" class="classic" hidden>
+    <div class="note" id="classicNote"></div>
+    <label class="shoot" for="cam">
+      <div class="btn"></div>
+      <span>Zrób zdjęcie karty</span>
+      <small>Cała karta w kadrze, na ciemnym tle, bez odblasków</small>
+    </label>
+    <input id="cam" type="file" accept="image/*" capture="environment">
+  </div>
+  <label class="gallery" for="pick">🖼️ Wybierz zdjęcia z galerii</label>
+  <input id="pick" type="file" accept="image/*" multiple>
+
+  <h2>Wysłane</h2>
+  <ul id="list"><li class="empty" id="emptyLi" style="background:none;border:0;padding:0">Jeszcze nic. Włóż kartę w ramkę.</li></ul>
+
+  <div class="legend">
+    <div><i style="background:var(--red)"></i><span><b>Czerwona ramka:</b> nie widzę karty.</span></div>
+    <div><i style="background:var(--yellow)"></i><span><b>Żółta:</b> karta jest, ale mało czytelna. Popraw ją albo zrób zdjęcie ręcznie.</span></div>
+    <div><i style="background:var(--green)"></i><span><b>Zielona:</b> karta czytelna. Zdjęcie robi się od razu samo.</span></div>
+  </div>
+  <p class="tips"><b>Wskazówki:</b> połóż kartę na ciemnym, gładkim tle i dopasuj jej krawędzie do ramki. Numer na dole karty (np. 104/091) musi być ostry. Odblaski usuniesz, przechylając lekko telefon. Wycenę znajdziesz na komputerze.</p>
+</main>
+
+<script>
+(() => {
+  const token = new URLSearchParams(location.search).get('t');
+  const DEBUG = new URLSearchParams(location.search).has('debug');
+  const $ = id => document.getElementById(id);
+  const list = $('list');
+  const items = new Map();
+  const pending = new Set();
+  let sentCount = 0;
+
+  // ===================== sending =====================
+  function setConn(ok, text) {
+    $('led').classList.toggle('off', !ok);
+    $('conn').textContent = text;
+  }
+
+  function fileToCanvas(file, maxSide = 2000) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('img')); };
+      img.src = url;
+    });
+  }
+
+  function thumbOf(canvas) {
+    const t = document.createElement('canvas');
+    const s = 120 / Math.max(canvas.width, canvas.height);
+    t.width = Math.round(canvas.width * s); t.height = Math.round(canvas.height * s);
+    t.getContext('2d').drawImage(canvas, 0, 0, t.width, t.height);
+    return t.toDataURL('image/jpeg', 0.6);
+  }
+
+  function addItem(thumb) {
+    $('emptyLi')?.remove();
+    const li = document.createElement('li');
+    li.innerHTML = '<img alt=""><div class="t"><div class="n">Wysyłanie…</div><div class="s"></div></div>';
+    li.querySelector('img').src = thumb;
+    list.prepend(li);
+    sentCount++;
+    const last = $('last');
+    if (last) { last.innerHTML = `<img src="${thumb}" alt=""><span class="count">${sentCount}</span>`; }
+    return li;
+  }
+
+  function setItem(li, state, title, sub) {
+    li.className = state;
+    li.querySelector('.n').textContent = title;
+    li.querySelector('.s').textContent = sub || '';
+  }
+
+  async function sendCanvas(canvas, cardBox = '') {
+    const li = addItem(thumbOf(canvas));
+    try {
+      const blob = await new Promise((res, rej) => canvas.toBlob(b => (b ? res(b) : rej(new Error('blob'))), 'image/jpeg', 0.92));
+      const r = await fetch('/api/photo?t=' + encodeURIComponent(token), { method: 'POST', headers: cardBox ? { 'Content-Type': 'image/jpeg', 'X-Card-Box': cardBox } : { 'Content-Type': 'image/jpeg' }, body: blob });
+      if (r.status === 403) { setItem(li, 'error', 'Nieaktualny kod', 'Zeskanuj ponownie kod QR z komputera'); setConn(false, 'Kod wygasł'); return; }
+      if (!r.ok) throw new Error('http ' + r.status);
+      const { id, desktopConnected } = await r.json();
+      items.set(id, li);
+      pending.add(id);
+      setItem(li, 'pending', 'Rozpoznawanie…', desktopConnected ? 'Komputer analizuje zdjęcie' : 'Otwórz PokéScan 2 na komputerze');
+      setConn(true, 'Połączono');
+    } catch (e) {
+      setItem(li, 'error', 'Nie wysłano', 'Sprawdź Wi‑Fi i spróbuj ponownie');
+      setConn(false, 'Brak połączenia');
+    }
+  }
+
+  async function onFiles(e) {
+    for (const f of e.target.files) { try { await sendCanvas(await fileToCanvas(f)); } catch {} }
+    e.target.value = '';
+  }
+  $('cam').addEventListener('change', onFiles);
+  $('pick').addEventListener('change', onFiles);
+
+  async function poll() {
+    try {
+      const ids = [...pending];
+      const r = await fetch('/api/photo-status?t=' + encodeURIComponent(token) + '&ids=' + ids.join(','));
+      if (r.status === 403) { setConn(false, 'Kod wygasł'); return; }
+      const data = await r.json();
+      for (const id of ids) {
+        const st = data[id];
+        if (!st) continue;
+        const li = items.get(id);
+        if (st.state === 'done') { setItem(li, 'done', st.text || 'Rozpoznano', '✓ Wycena na komputerze'); pending.delete(id); }
+        else if (st.state === 'error') { setItem(li, 'error', 'Nie rozpoznano', st.text || 'Spróbuj zrobić zdjęcie jeszcze raz'); pending.delete(id); }
+        else if (st.state === 'working') setItem(li, 'pending', 'Rozpoznawanie…', st.text || 'Komputer analizuje zdjęcie');
+        else if (st.state === 'queued') setItem(li, 'pending', 'W kolejce', st.text || 'Czeka na komputerze');
+      }
+      setConn(true, 'Połączono');
+    } catch { setConn(false, 'Brak połączenia'); }
+  }
+  poll();
+  setInterval(poll, 2000);
+
+  // ===================== fallback (no live camera) =====================
+  function classic(reason) {
+    $('live').hidden = true;
+    $('classic').hidden = false;
+    $('classicNote').innerHTML = reason;
+    // the connection pill lives in the camera view; mirror it in the note
+  }
+
+  const canLive = window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+  if (!canLive) {
+    classic('<b>Aparat na żywo jest niedostępny</b>, bo strona nie jest otwarta przez bezpieczne połączenie (https). Zeskanuj kod QR z komputera jeszcze raz. Na razie możesz robić zdjęcia zwykłym aparatem.');
+    return;
+  }
+
+  // ===================== live camera =====================
+  $('live').hidden = false;
+  const video = $('video');
+  const stage = $('stage');
+  const guide = $('guide');
+  const shutter = $('shutter');
+  const hintBox = $('hintBox');
+  const CARD_RATIO = 63 / 88;
+
+  let stream = null, track = null;
+  let auto = true;
+  try { auto = localStorage.getItem('pokescan-auto') !== '0'; } catch {}
+  const setAuto = v => {
+    auto = v;
+    $('auto').classList.toggle('on', v);
+    $('autoLabel').textContent = v ? 'Auto' : 'Ręcznie';
+    try { localStorage.setItem('pokescan-auto', v ? '1' : '0'); } catch {}
+  };
+  setAuto(auto);
+  $('auto').addEventListener('click', () => setAuto(!auto));
+
+  // Guide frame: card-shaped, as large as fits, slightly above centre
+  let G = { x: 0, y: 0, w: 0, h: 0 };
+  function layout() {
+    const W = stage.clientWidth, H = stage.clientHeight;
+    const top = 64, bottom = 96;
+    let w = Math.min(W * 0.8, (H - top - bottom) * CARD_RATIO);
+    let h = w / CARD_RATIO;
+    const x = (W - w) / 2, y = top + (H - top - bottom - h) / 2;
+    G = { x, y, w, h };
+    Object.assign(guide.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+    hintBox.style.top = Math.min(H - 70, y + h + 14) + 'px';
+  }
+  window.addEventListener('resize', layout);
+  layout();
+
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } },
+      });
+    } catch (e) {
+      const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+      classic(denied
+        ? '<b>Brak dostępu do aparatu.</b> Zezwól stronie na użycie aparatu w ustawieniach przeglądarki i odśwież ją. Na razie możesz robić zdjęcia zwykłym aparatem.'
+        : '<b>Nie udało się włączyć aparatu</b> (' + (e && e.name || 'błąd') + '). Możesz robić zdjęcia zwykłym aparatem.');
+      return false;
+    }
+    video.srcObject = stream;
+    track = stream.getVideoTracks()[0];
+    try { await video.play(); } catch {}
+    const caps = (track.getCapabilities && track.getCapabilities()) || {};
+    if (caps.focusMode && caps.focusMode.includes('continuous')) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+    $('torch').disabled = !caps.torch;
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+    return true;
+  }
+  let wakeLock = null;
+  let torchOn = false;
+  $('torch').addEventListener('click', async () => {
+    if (!track) return;
+    torchOn = !torchOn;
+    try { await track.applyConstraints({ advanced: [{ torch: torchOn }] }); } catch { torchOn = false; }
+    $('torch').classList.toggle('on', torchOn);
+  });
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden) {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      stream = null; track = null; torchOn = false; $('torch').classList.remove('on');
+    } else if (!stream && !$('live').hidden) {
+      await startCamera();
+    }
+  });
+
+  // ---------- mapping: guide (screen) -> video pixels (object-fit: cover) ----------
+  function videoMap() {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const W = stage.clientWidth, H = stage.clientHeight;
+    const sc = Math.max(W / vw, H / vh);
+    const ox = (W - vw * sc) / 2, oy = (H - vh * sc) / 2;
+    return { vw, vh, sc, ox, oy };
+  }
+
+  // ---------- card detection ----------
+  // We look for the card's four straight edges near the four sides of the guide.
+  // For each side, a band around the guide edge is scanned; along the edge the
+  // brightness step is summed (texture cancels out, a straight edge adds up).
+  const AW = 240;              // guide width in analysis pixels
+  const MARGIN = 0.22;         // analysis area around the guide (fraction of guide width)
+  const BAND = Math.round(AW * 0.2);
+  const ana = document.createElement('canvas');
+  const actx = ana.getContext('2d', { willReadFrequently: true });
+  const strip = document.createElement('canvas');
+  const sctx = strip.getContext('2d', { willReadFrequently: true });
+
+  function analyse() {
+    const m = videoMap();
+    if (!m.vw) return null;
+    const gw = G.w / m.sc, gh = G.h / m.sc;
+    const gx = (G.x - m.ox) / m.sc, gy = (G.y - m.oy) / m.sc;
+    const mg = gw * MARGIN;
+    const src = { x: gx - mg, y: gy - mg, w: gw + 2 * mg, h: gh + 2 * mg };
+    const s = AW / gw;
+    const cw = Math.round(src.w * s), ch = Math.round(src.h * s);
+    if (ana.width !== cw || ana.height !== ch) { ana.width = cw; ana.height = ch; }
+    actx.fillStyle = '#000'; actx.fillRect(0, 0, cw, ch);
+    actx.drawImage(video, src.x, src.y, src.w, src.h, 0, 0, cw, ch);
+    const px = actx.getImageData(0, 0, cw, ch).data;
+    const gray = new Float32Array(cw * ch);
+    for (let i = 0, j = 0; j < gray.length; i += 4, j++) gray[j] = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+
+    const g0x = mg * s, g0y = mg * s, g1x = g0x + AW, g1y = g0y + gh * s;
+    // parts of the analysis area outside the camera image are black: never look for edges there
+    const vx0 = Math.max(1, Math.ceil(-src.x * s) + 3), vx1 = Math.min(cw - 2, Math.floor((m.vw - src.x) * s) - 3);
+    const vy0 = Math.max(1, Math.ceil(-src.y * s) + 3), vy1 = Math.min(ch - 2, Math.floor((m.vh - src.y) * s) - 3);
+    const sides = {};
+    // vertical sides (left/right): sums of columns over 3 vertical segments
+    const segs = (a, b) => { const L = b - a; return [[a + L * 0.1, a + L * 0.37], [a + L * 0.37, a + L * 0.63], [a + L * 0.63, a + L * 0.9]].map(([p, q]) => [Math.round(p), Math.round(q)]); };
+    const vSegs = segs(g0y, g1y), hSegs = segs(g0x, g1x);
+
+    function profileV(xc) { // returns per segment profile over x in [xc-BAND, xc+BAND]
+      const x0 = Math.max(vx0, Math.round(xc - BAND)), x1 = Math.min(vx1, Math.round(xc + BAND));
+      if (x1 - x0 < 4) return [];
+      return vSegs.map(([y0, y1]) => {
+        const col = new Float32Array(x1 - x0 + 3);
+        for (let y = Math.max(vy0, y0); y < Math.min(vy1, y1); y++) {
+          const row = y * cw;
+          for (let x = x0 - 1; x <= x1 + 1; x++) col[x - x0 + 1] += gray[row + x];
+        }
+        const n = Math.max(1, Math.min(vy1, y1) - Math.max(vy0, y0));
+        const prof = [];
+        for (let x = x0; x <= x1; x++) prof.push({ p: x, v: Math.abs(col[x - x0 + 2] - col[x - x0]) / n });
+        return prof;
+      });
+    }
+    function profileH(yc) {
+      const y0 = Math.max(vy0, Math.round(yc - BAND)), y1 = Math.min(vy1, Math.round(yc + BAND));
+      if (y1 - y0 < 4) return [];
+      return hSegs.map(([x0, x1]) => {
+        const rowSum = new Float32Array(y1 - y0 + 3);
+        const a = Math.max(vx0, x0), b = Math.min(vx1, x1);
+        for (let y = y0 - 1; y <= y1 + 1; y++) {
+          let acc = 0; const row = y * cw;
+          for (let x = a; x < b; x++) acc += gray[row + x];
+          rowSum[y - y0 + 1] = acc;
+        }
+        const n = Math.max(1, b - a);
+        const prof = [];
+        for (let y = y0; y <= y1; y++) prof.push({ p: y, v: Math.abs(rowSum[y - y0 + 2] - rowSum[y - y0]) / n });
+        return prof;
+      });
+    }
+    // pick the outermost strong peak (the card edge, not the inner frame of the card)
+    function peak(prof, outerIsLow) {
+      let max = 0;
+      for (const e of prof) if (e.v > max) max = e.v;
+      const sorted = prof.map(e => e.v).sort((a, b) => a - b);
+      const med = sorted[sorted.length >> 1];
+      if (max < 7 || max < med * 2.2 + 2) return null;
+      const cand = prof.filter((e, i) => e.v >= max * 0.6 && (i === 0 || e.v >= prof[i - 1].v) && (i === prof.length - 1 || e.v >= prof[i + 1].v));
+      const pick = outerIsLow ? cand[0] : cand[cand.length - 1];
+      return pick ? { p: pick.p, v: pick.v, rel: pick.v / (med + 1) } : null;
+    }
+    function side(profiles, outerIsLow) {
+      const pk = profiles.map(pr => (pr.length > 4 ? peak(pr, outerIsLow) : null)).filter(Boolean);
+      if (pk.length < 2) return null;
+      const ps = pk.map(k => k.p).sort((a, b) => a - b);
+      return { pos: ps[ps.length >> 1], tilt: ps[ps.length - 1] - ps[0], n: pk.length, v: Math.min(...pk.map(k => k.v)) };
+    }
+    sides.L = side(profileV(g0x), true);
+    sides.R = side(profileV(g1x), false);
+    sides.T = side(profileH(g0y), true);
+    sides.B = side(profileH(g1y), false);
+
+    const found = ['L', 'R', 'T', 'B'].filter(k => sides[k]);
+    const res = { found: found.length, sides, s, src, cw, ch };
+    if (found.length < 3) return res;
+
+    // card box (fill a missing side from the card proportions)
+    let { L, R, T, B } = Object.fromEntries(found.map(k => [k, sides[k].pos]));
+    if (L == null) L = R - (B - T) * CARD_RATIO;
+    if (R == null) R = L + (B - T) * CARD_RATIO;
+    if (T == null) T = B - (R - L) / CARD_RATIO;
+    if (B == null) B = T + (R - L) / CARD_RATIO;
+    const w = R - L, h = B - T;
+    if (w <= 0 || h <= 0) return res;
+    const aspect = w / h;
+    if (aspect < 0.55 || aspect > 0.9) return res;
+    res.card = { L, R, T, B, w, h, aspect };
+    res.tilt = Math.max(...found.map(k => sides[k].tilt));
+
+    // exposure and glare inside the card
+    let sum = 0, n = 0, glare = 0;
+    for (let y = Math.round(T + h * 0.05); y < B - h * 0.05; y += 2) {
+      for (let x = Math.round(L + w * 0.05); x < R - w * 0.05; x += 2) {
+        const i = (y * cw + x) * 4;
+        sum += gray[y * cw + x]; n++;
+        if (px[i] > 248 && px[i + 1] > 248 && px[i + 2] > 248) glare++;
+      }
+    }
+    res.brightness = n ? sum / n : 0;
+    res.glare = n ? glare / n : 0;
+
+    // sharpness of the number area at the bottom of the card, at camera resolution
+    const vx = src.x + L / s, vy = src.y + T / s, vw = w / s, vh = h / s;
+    res.cardPx = vw;
+    // Resampled so the card is ~600 px wide (about what the computer reads), then:
+    // sharpness = strongest edges (99th percentile of the gradient) / contrast.
+    // A blurred edge is spread over more pixels, so its gradient is lower; noise barely moves the 99th percentile.
+    const sx = vx + vw * 0.03, sy = vy + vh * 0.875, sw = vw * 0.94, sh = vh * 0.11;
+    const k = Math.min(1.5, 600 / vw);
+    const tw = Math.max(16, Math.round(sw * k)), th = Math.max(8, Math.round(sh * k));
+    if (strip.width !== tw || strip.height !== th) { strip.width = tw; strip.height = th; }
+    sctx.drawImage(video, sx, sy, sw, sh, 0, 0, tw, th);
+    const sp = sctx.getImageData(0, 0, tw, th).data;
+    const sg = new Float32Array(tw * th);
+    const hist = new Uint32Array(256);
+    for (let i = 0, j = 0; j < sg.length; i += 4, j++) { sg[j] = sp[i] * 0.299 + sp[i + 1] * 0.587 + sp[i + 2] * 0.114; hist[sg[j] | 0]++; }
+    const pct = (h, total, q) => { let acc = 0; for (let i = 0; i < h.length; i++) { acc += h[i]; if (acc >= total * q) return i; } return h.length - 1; };
+    const range = pct(hist, sg.length, 0.98) - pct(hist, sg.length, 0.02);
+    const ghist = new Uint32Array(512);
+    let gn = 0;
+    for (let y = 1; y < th - 1; y++) for (let x = 1; x < tw - 1; x++) {
+      const j = y * tw + x;
+      const gxv = (sg[j - tw + 1] + 2 * sg[j + 1] + sg[j + tw + 1]) - (sg[j - tw - 1] + 2 * sg[j - 1] + sg[j + tw - 1]);
+      const gyv = (sg[j + tw - 1] + 2 * sg[j + tw] + sg[j + tw + 1]) - (sg[j - tw - 1] + 2 * sg[j - tw] + sg[j - tw + 1]);
+      ghist[Math.min(511, Math.round(Math.hypot(gxv, gyv) / 4))]++; gn++;
+    }
+    res.contrast = range;
+    res.sharp = gn ? 100 * pct(ghist, gn, 0.99) / Math.max(range, 40) : 0;
+    res.video = { x: vx, y: vy, w: vw, h: vh };
+    return res;
+  }
+
+  // ---------- state machine ----------
+  const history = [];
+  let state = 'red', candidate = 'red', candidateCount = 0;
+  let greenSince = 0, armed = true, redSince = performance.now(), lastShot = 0;
+  let lastRes = null;
+  // Sharpness: ~65 for a sharp card, ~29 slightly blurred, ~18 blurred (card ~600 px wide).
+  // Phones with a soft lens never reach 38, so we also accept 90% of the best value seen in the last
+  // few seconds (never below 26).
+  const SHARP_MIN = 38, SHARP_FLOOR = 26;
+  const sharpSeen = [];
+
+  function evaluate(r) {
+    if (!r || !r.card) return { st: 'red', hint: 'Włóż kartę w ramkę', hint2: 'Dopasuj krawędzie karty do ramki' };
+    const c = r.card;
+    history.push({ L: c.L, R: c.R, T: c.T, B: c.B, t: performance.now() });
+    while (history.length > 4) history.shift();
+    const jitter = history.length < 3 ? 99 : Math.max(...['L', 'R', 'T', 'B'].map(k => Math.max(...history.map(h => h[k])) - Math.min(...history.map(h => h[k]))));
+    const fill = c.w / AW;
+    const problems = [];
+    if (r.found < 4) problems.push(['Dopasuj kartę do ramki', 'Nie widać jednej krawędzi karty']);
+    if (Math.abs(c.aspect / CARD_RATIO - 1) > 0.08) problems.push(['Wyprostuj telefon', 'Trzymaj go równolegle do karty']);
+    if (r.tilt > AW * 0.04) problems.push(['Obróć kartę równo z ramką', 'Krawędzie karty są przekrzywione']);
+    if (fill < 0.84) problems.push(['Przybliż telefon', 'Karta powinna wypełnić ramkę']);
+    if (fill > 1.16) problems.push(['Oddal telefon', 'Karta wychodzi poza ramkę']);
+    if (r.brightness < 45) problems.push(['Za ciemno', track && $('torch').disabled === false ? 'Włącz latarkę albo zapal światło' : 'Zapal światło']);
+    if (r.glare > 0.02) problems.push(['Odblask na karcie', 'Przechyl lekko telefon albo kartę']);
+    if (r.cardPx < 380) problems.push(['Za mało szczegółów', 'Przybliż telefon do karty']);
+    if (jitter > 3) problems.push(['Trzymaj nieruchomo', 'Telefon się porusza']);
+    const now = performance.now();
+    if (jitter > 3) sharpSeen.length = 0; else sharpSeen.push({ v: r.sharp, t: now });
+    while (sharpSeen.length && now - sharpSeen[0].t > 4000) sharpSeen.shift();
+    const best = Math.max(0, ...sharpSeen.map(x => x.v));
+    const settled = sharpSeen.length > 5 && now - sharpSeen[0].t > 2500; // card held still for a while
+    const need = settled ? Math.min(SHARP_MIN, Math.max(SHARP_FLOOR, best * 0.9)) : SHARP_MIN;
+    if (r.sharp < need) problems.push(['Nieostro', r.sharp < SHARP_FLOOR ? 'Poczekaj, aż aparat ustawi ostrość' : 'Trzymaj telefon stabilnie']);
+    if (!problems.length) return { st: 'green', hint: 'Świetnie! Nie ruszaj…', hint2: auto ? 'Robię zdjęcie…' : 'Naciśnij spust' };
+    return { st: 'yellow', hint: problems[0][0], hint2: problems[0][1] + ' · możesz też zrobić zdjęcie ręcznie' };
+  }
+
+  function show(st, hint, hint2) {
+    guide.dataset.state = st;
+    shutter.dataset.state = st;
+    hintBox.style.setProperty('--c', `var(--${st})`);
+    shutter.disabled = st === 'red';
+    $('hint').textContent = hint;
+    $('hint2').textContent = hint2;
+  }
+
+  function capture(fromAuto) {
+    const r = lastRes;
+    if (!video.videoWidth) return;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    // crop: detected card (or the guide) plus a margin, so the computer can find the edges itself
+    let box;
+    if (r && r.video) box = r.video;
+    else { const m = videoMap(); box = { x: (G.x - m.ox) / m.sc, y: (G.y - m.oy) / m.sc, w: G.w / m.sc, h: G.h / m.sc }; }
+    const mx = box.w * 0.12, my = box.h * 0.1;
+    const x0 = Math.max(0, box.x - mx), y0 = Math.max(0, box.y - my);
+    const x1 = Math.min(vw, box.x + box.w + mx), y1 = Math.min(vh, box.y + box.h + my);
+    const k = Math.min(1, 2000 / Math.max(x1 - x0, y1 - y0));
+    const c = document.createElement('canvas');
+    c.width = Math.round((x1 - x0) * k); c.height = Math.round((y1 - y0) * k);
+    c.getContext('2d').drawImage(video, x0, y0, x1 - x0, y1 - y0, 0, 0, c.width, c.height);
+    const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+    try { navigator.vibrate && navigator.vibrate(fromAuto ? 60 : 30); } catch {}
+    lastShot = performance.now();
+    armed = false;
+    // where the card is inside the photo (helps the computer when the edges are hard to see)
+    const rel = r && r.video ? [(box.x - x0) / (x1 - x0), (box.y - y0) / (y1 - y0), box.w / (x1 - x0), box.h / (y1 - y0)].map(v => v.toFixed(4)).join(',') : '';
+    sendCanvas(c, rel);
+  }
+  shutter.addEventListener('click', () => capture(false));
+
+  let busy = false, lastTick = 0;
+  function tick(now) {
+    requestAnimationFrame(tick);
+    if (busy || now - lastTick < 90 || video.readyState < 2 || document.hidden) return;
+    lastTick = now; busy = true;
+    try {
+      const r = analyse();
+      lastRes = r && r.card ? r : null;
+      const e = evaluate(r);
+      if (!r || !r.card) history.length = 0;
+      // require two frames in a row before changing colour (no flicker)
+      if (e.st === candidate) candidateCount++; else { candidate = e.st; candidateCount = 1; }
+      if (candidateCount >= 2 && state !== candidate) {
+        state = candidate;
+        if (state === 'green') greenSince = now;
+        if (state === 'red') redSince = now;
+      }
+      if (state === 'red' && now - redSince > 600) armed = true;
+      let p = 0;
+      // green = readable: take the photo right away
+      if (state === 'green' && auto && armed) capture(true);
+      let hint = e.hint, hint2 = e.hint2;
+      if (state !== e.st) { hint = $('hint').textContent; hint2 = $('hint2').textContent; } // colour not switched yet
+      if (!armed && state !== 'red') { hint = '✓ Wysłano na komputer'; hint2 = 'Zabierz kartę i połóż następną'; }
+      show(state, hint, hint2);
+      shutter.style.setProperty('--p', p.toFixed(3));
+      if (DEBUG) {
+        $('debug').hidden = false;
+        const sd = r ? Object.entries(r.sides).map(([k, v]) => k + (v ? `${v.pos | 0}/${v.tilt}/${v.v.toFixed(0)}` : '-')).join(' ') : '';
+        $('debug').textContent = `${state} ${e.st} found=${r ? r.found : 0} ${sd}\n` + (r && r.card ? `fill=${(r.card.w / AW).toFixed(2)} asp=${(r.card.aspect / CARD_RATIO).toFixed(2)} tilt=${r.tilt} br=${r.brightness.toFixed(0)} gl=${(r.glare * 100).toFixed(1)}% px=${r.cardPx | 0} sharp=${r.sharp.toFixed(1)} best=${Math.max(0, ...sharpSeen.map(x => x.v)).toFixed(0)} con=${r.contrast}` : '') + `\nvideo ${video.videoWidth}x${video.videoHeight}`;
+        window.__scan = { state, e, r: r && { found: r.found, card: r.card, sharp: r.sharp, cardPx: r.cardPx, src: r.src, s: r.s }, G, map: videoMap() };
+      }
+    } catch (err) {
+      if (DEBUG) $('debug').textContent = String(err && err.stack || err);
+    } finally { busy = false; }
+  }
+
+  $('last').addEventListener('click', () => list.scrollIntoView({ behavior: 'smooth' }));
+
+  show('red', 'Uruchamianie aparatu…', 'Zezwól na dostęp do aparatu');
+  startCamera().then(ok => {
+    if (!ok) return;
+    show('red', 'Włóż kartę w ramkę', 'Dopasuj krawędzie karty do ramki');
+    requestAnimationFrame(tick);
+  });
+})();
+</script>
+</body>
+</html>
