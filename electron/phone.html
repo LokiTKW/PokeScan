@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#07070d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/phone.webmanifest?t=__TOKEN__">
+<link rel="icon" href="/phone-icon.png">
+<link rel="apple-touch-icon" href="/phone-icon.png">
 <title>PokéScan 2 – telefon</title>
 <style>
   :root {
@@ -51,6 +57,13 @@
   .hint b { display: block; font-size: 15.5px; font-weight: 750; }
   .hint small { display: block; font-size: 12px; color: #a9a9c2; margin-top: 2px; }
   .hint .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 7px; vertical-align: 1px; box-shadow: 0 0 10px var(--c); }
+  .tb-btn { position: relative; flex: none; height: 34px; min-width: 34px; padding: 0 8px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.14); color: #e9e9f4; font-size: 11px; font-weight: 700; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .tb-btn svg { width: 18px; height: 18px; }
+  .tb-btn:active { transform: scale(.94); }
+  @media (max-width: 380px) { .brand { display: none; } }
+  .focus-ring { position: absolute; width: 74px; height: 74px; margin: -37px 0 0 -37px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 0 18px rgba(255,255,255,.35); opacity: 0; pointer-events: none; }
+  .focus-ring.on { animation: focusring .9s ease-out; }
+  @keyframes focusring { 0% { opacity: 1; transform: scale(1.35); } 40% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1); } }
   .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
   .flash.on { animation: flash .45s ease-out; }
   @keyframes flash { 0% { opacity: .85; } 100% { opacity: 0; } }
@@ -123,7 +136,10 @@
     <div class="topbar">
       <div class="mark"></div><div class="brand">PokéScan</div>
       <div class="pill"><span class="led" id="led"></span><span id="conn">Połączono</span></div>
+      <button class="tb-btn" id="switchCam" hidden aria-label="Zmień aparat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><path d="M9 13a3 3 0 0 1 5.2-2"/><path d="M15 13a3 3 0 0 1-5.2 2"/><path d="M14 9.5V11h-1.5"/><path d="M10 16.5V15h1.5"/></svg><span id="camNo"></span></button>
+      <button class="tb-btn" id="fullscreen" hidden aria-label="Pełny ekran"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
     </div>
+    <div class="focus-ring" id="focusRing"></div>
     <div class="hint" id="hintBox"><b><span class="dot"></span><span id="hint">Uruchamianie aparatu…</span></b><small id="hint2">Zezwól na dostęp do aparatu</small></div>
     <div class="flash" id="flash"></div>
     <div class="debug" id="debug" hidden></div>
@@ -161,7 +177,8 @@
     <div><i style="background:var(--yellow)"></i><span><b>Żółta:</b> karta jest, ale mało czytelna. Popraw ją albo zrób zdjęcie ręcznie.</span></div>
     <div><i style="background:var(--green)"></i><span><b>Zielona:</b> karta czytelna. Zdjęcie robi się od razu samo.</span></div>
   </div>
-  <p class="tips"><b>Wskazówki:</b> połóż kartę na ciemnym, gładkim tle i dopasuj jej krawędzie do ramki. Numer na dole karty (np. 104/091) musi być ostry. Odblaski usuniesz, przechylając lekko telefon. Wycenę znajdziesz na komputerze.</p>
+  <p class="tips"><b>Wskazówki:</b> połóż kartę na ciemnym, gładkim tle i dopasuj jej krawędzie do ramki. Numer na dole karty (np. 104/091) musi być ostry. Odblaski usuniesz, przechylając lekko telefon. Wycenę znajdziesz na komputerze. Stuknij podgląd, żeby ustawić ostrość.</p>
+  <p class="tips" id="homeTip"><b>Jak aplikacja:</b> <span id="homeTipText">w Chrome stuknij ⋮ → <b>Dodaj do ekranu głównego</b>. Skaner otworzysz wtedy ikoną z ekranu telefonu. Link działa także po ponownym uruchomieniu programu na komputerze.</span></p>
 </main>
 
 <script>
@@ -320,28 +337,136 @@
   window.addEventListener('resize', layout);
   layout();
 
+  // ---------- camera ----------
+  // Android phones often have several back cameras (main, ultra-wide, macro, tele). The browser
+  // does not always pick the main one, which then cannot focus up close. We pick it ourselves
+  // ("camera2 0, facing back" is the main camera) and let the user switch.
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  let camList = [];
+  let camId = null;
+  try { camId = localStorage.getItem('pokescan-cam') || null; } catch {}
+
+  // "Add to home screen" hint, in the words of the phone's own browser. Hidden once opened from the icon.
+  (function homeTip() {
+    const tip = document.getElementById('homeTip');
+    const txt = document.getElementById('homeTipText');
+    const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    if (standalone) { tip.hidden = true; return; }
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isSamsung = /SamsungBrowser/i.test(navigator.userAgent);
+    const where = isIOS ? 'w Safari stuknij <b>Udostępnij</b> → <b>Do ekranu początkowego</b>'
+      : isSamsung ? 'w Samsung Internet stuknij ☰ → <b>Dodaj stronę do</b> → <b>Ekran startowy</b>'
+      : isAndroid ? 'w Chrome stuknij ⋮ → <b>Dodaj do ekranu głównego</b>'
+      : 'dodaj tę stronę do ekranu głównego w menu przeglądarki';
+    txt.innerHTML = where + '. Skaner otworzysz wtedy ikoną z ekranu telefonu. Link działa także po ponownym uruchomieniu programu na komputerze.';
+  })();
+
+  function openStream(deviceId) {
+    const v = { width: { ideal: 2560 }, height: { ideal: 1440 } };
+    if (deviceId) v.deviceId = { exact: deviceId }; else v.facingMode = { ideal: 'environment' };
+    return navigator.mediaDevices.getUserMedia({ audio: false, video: v }).then(st => { openedWith = deviceId || ''; return st; });
+  }
+  let openedWith = '';
+  const currentCam = () => openedWith || (track && track.getSettings ? track.getSettings().deviceId || '' : '');
+
+  function rankCameras(devs) {
+    const vids = devs.filter(d => d.kind === 'videoinput' && d.label);
+    const back = vids.filter(d => /back|rear|environment|tył|tyln/i.test(d.label));
+    const list = back.length ? back : vids;
+    const num = d => { const m = d.label.match(/camera2?\s*(\d+)/i); return m ? +m[1] : 99; };
+    const odd = d => (/ultra|wide|tele|depth|macro|szerok/i.test(d.label) ? 1 : 0);
+    return [...list].sort((x, y) => odd(x) - odd(y) || num(x) - num(y));
+  }
+
+  function stopStream() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null; track = null; torchOn = false; $('torch').classList.remove('on');
+  }
+
   async function startCamera() {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } },
-      });
-    } catch (e) {
-      const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+    let err = null;
+    try { stream = await openStream(camId); }
+    catch (e) {
+      err = e;
+      if (camId) { camId = null; try { stream = await openStream(null); err = null; } catch (e2) { err = e2; } }
+    }
+    if (err || !stream) {
+      const e = err || {};
+      const denied = e.name === 'NotAllowedError' || e.name === 'SecurityError';
       classic(denied
-        ? '<b>Brak dostępu do aparatu.</b> Zezwól stronie na użycie aparatu w ustawieniach przeglądarki i odśwież ją. Na razie możesz robić zdjęcia zwykłym aparatem.'
-        : '<b>Nie udało się włączyć aparatu</b> (' + (e && e.name || 'błąd') + '). Możesz robić zdjęcia zwykłym aparatem.');
+        ? '<b>Brak dostępu do aparatu.</b> ' + (isAndroid
+          ? 'W Chrome stuknij ikonę obok adresu strony → Uprawnienia → Aparat → Zezwól, a potem odśwież stronę.'
+          : 'Zezwól stronie na użycie aparatu w ustawieniach przeglądarki i odśwież ją.') + ' Na razie możesz robić zdjęcia zwykłym aparatem.'
+        : '<b>Nie udało się włączyć aparatu</b> (' + (e.name || 'błąd') + '). Zamknij inne aplikacje, które używają aparatu, i odśwież stronę. Możesz też robić zdjęcia zwykłym aparatem.');
       return false;
     }
-    video.srcObject = stream;
     track = stream.getVideoTracks()[0];
+    try { camList = rankCameras(await navigator.mediaDevices.enumerateDevices()); } catch {}
+    if (!camId && isAndroid && camList.length > 1) {
+      const best = camList[0];
+      if (best && best.deviceId && best.deviceId !== currentCam()) {
+        stopStream();
+        try { stream = await openStream(best.deviceId); } catch { stream = await openStream(null); }
+        track = stream.getVideoTracks()[0];
+      }
+    }
+    video.srcObject = stream;
     try { await video.play(); } catch {}
     const caps = (track.getCapabilities && track.getCapabilities()) || {};
     if (caps.focusMode && caps.focusMode.includes('continuous')) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
     $('torch').disabled = !caps.torch;
-    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+    const idx = camList.findIndex(d => d.deviceId === currentCam());
+    $('switchCam').hidden = camList.length < 2;
+    $('camNo').textContent = camList.length > 1 ? `${idx + 1 || 1}/${camList.length}` : '';
+    try { if ('wakeLock' in navigator && (!wakeLock || wakeLock.released)) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
     return true;
   }
+
+  $('switchCam').addEventListener('click', async e => {
+    e.stopPropagation();
+    if (camList.length < 2) return;
+    const idx = camList.findIndex(d => d.deviceId === currentCam());
+    camId = camList[(idx + 1) % camList.length].deviceId;
+    try { localStorage.setItem('pokescan-cam', camId); } catch {}
+    stopStream();
+    history.length = 0;
+    await startCamera();
+  });
+
+  // full screen (Android; iPhone does not allow it for web pages)
+  if (document.fullscreenEnabled && document.documentElement.requestFullscreen) {
+    $('fullscreen').hidden = false;
+    $('fullscreen').addEventListener('click', async e => {
+      e.stopPropagation();
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else {
+          await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+          try { await screen.orientation.lock('portrait'); } catch {}
+        }
+      } catch {}
+    });
+    document.addEventListener('fullscreenchange', () => setTimeout(layout, 150));
+  }
+
+  // tap to focus
+  stage.addEventListener('click', async e => {
+    if (!track || e.target.closest('button')) return;
+    const r = stage.getBoundingClientRect();
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+    const ring = $('focusRing');
+    ring.style.left = px + 'px'; ring.style.top = py + 'px';
+    ring.classList.remove('on'); void ring.offsetWidth; ring.classList.add('on');
+    const caps = (track.getCapabilities && track.getCapabilities()) || {};
+    const m = videoMap();
+    const adv = {};
+    if (caps.focusMode && caps.focusMode.includes('single-shot')) adv.focusMode = 'single-shot';
+    if (m.vw && 'pointsOfInterest' in caps) adv.pointsOfInterest = [{ x: Math.min(1, Math.max(0, (px - m.ox) / m.sc / m.vw)), y: Math.min(1, Math.max(0, (py - m.oy) / m.sc / m.vh)) }];
+    if (!Object.keys(adv).length) return;
+    try { await track.applyConstraints({ advanced: [adv] }); } catch {}
+    if (adv.focusMode && caps.focusMode.includes('continuous')) setTimeout(() => track && track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}), 2500);
+  });
+
   let wakeLock = null;
   let torchOn = false;
   $('torch').addEventListener('click', async () => {
@@ -352,8 +477,7 @@
   });
   document.addEventListener('visibilitychange', async () => {
     if (document.hidden) {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      stream = null; track = null; torchOn = false; $('torch').classList.remove('on');
+      stopStream();
     } else if (!stream && !$('live').hidden) {
       await startCamera();
     }

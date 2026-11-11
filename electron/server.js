@@ -114,7 +114,14 @@ function startServer(opts) {
     } catch {}
   };
 
-  const token = crypto.randomBytes(9).toString('base64url');
+  // The pairing code is kept between starts, so a phone link or home-screen icon keeps working.
+  const tokenFile = path.join(dataDir, 'phone-token.txt');
+  let token = '';
+  try { token = fs.readFileSync(tokenFile, 'utf8').trim(); } catch {}
+  if (!/^[A-Za-z0-9_-]{12,64}$/.test(token)) {
+    token = crypto.randomBytes(12).toString('base64url');
+    try { fs.writeFileSync(tokenFile, token); } catch {}
+  }
   const listeners = new Set();
   const photos = new Map();
   let lastPhoneSeen = 0;
@@ -177,7 +184,30 @@ function startServer(opts) {
         lastPhoneSeen = Date.now();
         broadcast({ type: 'phone', connected: true });
         res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store' });
-        res.end(fs.readFileSync(path.join(__dirname, 'phone.html'), 'utf8'));
+        res.end(fs.readFileSync(path.join(__dirname, 'phone.html'), 'utf8').replace(/__TOKEN__/g, token));
+        return;
+      }
+      if (p === '/phone.webmanifest') {
+        if (!fromPhone) { res.writeHead(403); res.end(); return; }
+        res.writeHead(200, { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({
+          name: 'PokéScan – skaner',
+          short_name: 'PokéScan',
+          start_url: `/phone?t=${token}`,
+          scope: '/',
+          display: 'standalone',
+          orientation: 'portrait',
+          background_color: '#07070d',
+          theme_color: '#07070d',
+          icons: [{ src: '/phone-icon.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' }],
+        }));
+        return;
+      }
+      if (p === '/phone-icon.png') {
+        const icon = path.join(__dirname, 'icon.png');
+        if (!fs.existsSync(icon)) { res.writeHead(404); res.end(); return; }
+        res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400' });
+        fs.createReadStream(icon).pipe(res);
         return;
       }
       if (p === '/api/photo' && req.method === 'POST') {

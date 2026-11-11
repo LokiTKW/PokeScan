@@ -41,6 +41,14 @@ Nie potrzebuje AI, kont, kluczy API ani opłat. Rozpoznawanie działa na Twoim k
 
 Jeśli aparat na żywo nie zadziała, strona sama przełączy się na zwykłe zdjęcia. Pod kodem QR jest też adres bez https.
 
+### Android
+
+- Strona sama wybiera główny tylny aparat (nie szerokokątny ani makro), bo tylko on dobrze łapie ostrość z bliska. Jeśli obraz jest nieostry, stuknij przycisk aparatu u góry (np. „1/3”), aby przełączyć obiektyw. Wybór zostaje zapamiętany.
+- **Stuknij podgląd**, żeby ustawić ostrość w danym miejscu (jeśli telefon na to pozwala).
+- Przycisk **pełnego ekranu** u góry chowa pasek adresu i zostawia więcej miejsca na kartę.
+- W Chrome stuknij **⋮ → Dodaj do ekranu głównego**. Skaner otworzysz wtedy ikoną jak zwykłą aplikację, bez paska przeglądarki. Link i ikona działają także po ponownym uruchomieniu programu na komputerze (o ile komputer ma ten sam adres w sieci).
+- Jeśli wcześniej nie zezwolono na aparat: stuknij ikonę obok adresu strony → **Uprawnienia → Aparat → Zezwól** i odśwież stronę.
+
 ## Jak skanować
 
 - Połóż kartę na ciemnym, gładkim tle i dopasuj jej krawędzie do ramki. Gdy ramka zaświeci na zielono, zdjęcie zrobi się samo.
@@ -67,6 +75,7 @@ Wszystko jest zapisane na Twoim komputerze w `%APPDATA%\PokeScan 2\`:
 | `pokedex.json` | Twoje Pokédexy |
 | `visual-index.json`, `visual-index.bin` | baza odcisków obrazów (możesz usunąć, zbuduje się ponownie) |
 | `https-cert.json` | certyfikat strony dla telefonu |
+| `phone-token.txt` | kod parowania telefonu (usuń, aby unieważnić stare linki i ikony na telefonach) |
 | `pokescan.log` | dziennik, przydatny przy zgłaszaniu problemów |
 
 Zaawansowane ustawienia (zmienne środowiskowe, zwykle niepotrzebne):
@@ -99,7 +108,7 @@ npm run dist:win     # instalator i zip w folderze release/
 
 Bez Electrona można uruchomić sam serwer (`npm run server`) i otworzyć `http://localhost:8766` w przeglądarce. Ceny z Allegro i Vinted działają tylko w aplikacji.
 
-Wydanie nowej wersji: zmień `version` w `package.json` i opublikuj Release na GitHubie z tagiem np. `v2.5.0`. GitHub Actions (`.github/workflows/build-windows.yml`) zbuduje instalator na Windows i doda go do wydania.
+Wydanie nowej wersji: zmień `version` w `package.json` i opublikuj Release na GitHubie z tagiem np. `v2.6.0`. GitHub Actions (`.github/workflows/build-windows.yml`) zbuduje instalator na Windows i doda go do wydania.
 
 ### Jak to działa
 
