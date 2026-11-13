@@ -16,6 +16,7 @@ Nie potrzebuje AI, kont, kluczy API ani opłat. Rozpoznawanie działa na Twoim k
   - zielona: karta czytelna i zdjęcie robi się od razu samo.
 - **Rozpoznawanie bez AI.** Zdjęcie jest porównywane z „odciskami” obrazków wszystkich kart z darmowej bazy [TCGdex](https://tcgdex.dev). Działa nawet dla kart pełnoobrazkowych, w koszulkach i z odblaskami. OCR (Tesseract) odczytuje numer i nazwę i potwierdza wynik.
 - **Wycena z trzech źródeł.** Cardmarket (przez TCGdex, przeliczone na zł po kursie NBP), Allegro i Vinted (mediana ofert). Uwzględnia stan karty (NM, LP, MP, HP).
+- **Cena raw i po gradingu.** Cena karty bez gradingu i z oceną 10 w pięciu największych firmach gradingowych: PSA, BGS (Beckett), CGC, SGC i TAG. Do tego BGS 10 Black, CGC 10 Pristine i ceny ocen 7–9.5 oraz mnożnik względem karty raw. Dane z [PriceCharting](https://www.pricecharting.com) (zakończone sprzedaże na eBay), przeliczone na zł po kursie NBP.
 - **Kolekcja i statystyki.** Wartość kolekcji, najcenniejsze karty, wartość według setów.
 - **Pokédex.** Jeden Pokédex to jeden set, np. najnowszy dodatek. Tworzy się sam przy pierwszej karcie z setu. Widzisz wszystkie karty setu: te, które masz, i te, których brakuje, postęp w procentach i wartość. Skanując „do Pokédexu”, aplikacja szuka tylko wśród kart tego setu, więc rozpoznaje jeszcze pewniej.
 
@@ -86,13 +87,14 @@ Zaawansowane ustawienia (zmienne środowiskowe, zwykle niepotrzebne):
 | `POKESCAN_HTTPS_PORT` | port + 1 (`8767`) | port strony dla telefonu (https) |
 | `TCGDEX_API` | `https://api.tcgdex.net/v2/en` | adres bazy kart |
 
-Prywatność: zdjęcia nie opuszczają Twojego komputera. Aplikacja łączy się tylko z TCGdex (dane i obrazki kart, ceny Cardmarket), NBP (kurs euro) oraz Allegro i Vinted (oferty, w ukrytym oknie przeglądarki).
+Prywatność: zdjęcia nie opuszczają Twojego komputera. Aplikacja łączy się tylko z TCGdex (dane i obrazki kart, ceny Cardmarket), NBP (kursy euro i dolara), PriceCharting (ceny raw i po gradingu) oraz Allegro i Vinted (oferty, w ukrytym oknie przeglądarki).
 
 ## Rozwiązywanie problemów
 
 - **Telefon nie łączy się:** sprawdź, czy oba urządzenia są w tej samej sieci Wi‑Fi (nie w sieci dla gości) i czy Zapora Windows pozwala aplikacji na sieci prywatne.
 - **Ramka nie robi się zielona:** zapal światło, usuń odblaski (lekko przechyl telefon), wyjmij kartę z grubego toploadera albo zrób zdjęcie ręcznie przy żółtej ramce.
 - **Zła karta:** wybierz właściwą z listy podobnych. Skanowanie do Pokédexu bardzo poprawia trafność.
+- **Cena po gradingu pasuje do innej karty:** pod cenami pojawi się ostrzeżenie z nazwą znalezionej karty. Przycisk **PriceCharting** otwiera stronę z cenami, gdzie sprawdzisz właściwą wersję.
 - **Allegro lub Vinted prosi o weryfikację:** okno przeglądarki pokaże się samo. Rozwiąż ją, a aplikacja dokończy odczyt cen.
 - Zgłaszając błąd w zakładce **Issues**, dołącz plik `pokescan.log`.
 
@@ -108,7 +110,7 @@ npm run dist:win     # instalator i zip w folderze release/
 
 Bez Electrona można uruchomić sam serwer (`npm run server`) i otworzyć `http://localhost:8766` w przeglądarce. Ceny z Allegro i Vinted działają tylko w aplikacji.
 
-Wydanie nowej wersji: zmień `version` w `package.json` i opublikuj Release na GitHubie z tagiem np. `v2.6.0`. GitHub Actions (`.github/workflows/build-windows.yml`) zbuduje instalator na Windows i doda go do wydania.
+Wydanie nowej wersji: zmień `version` w `package.json` i opublikuj Release na GitHubie z tagiem np. `v2.7.0`. GitHub Actions (`.github/workflows/build-windows.yml`) zbuduje instalator na Windows i doda go do wydania.
 
 ### Jak to działa
 
@@ -119,7 +121,7 @@ Wydanie nowej wersji: zmień `version` w `package.json` i opublikuj Release na G
 | Wyszukanie i wyprostowanie karty | OpenCV.js |
 | Rozpoznanie | odciski obrazków (siatka jasności 16×22 + kolory 8×11) porównywane z całą bazą TCGdex, do tego pHash |
 | Odczyt tekstu | Tesseract.js (offline) |
-| Ceny | TCGdex (Cardmarket), NBP, Allegro i Vinted w ukrytym oknie przeglądarki |
+| Ceny | TCGdex (Cardmarket), NBP, Allegro i Vinted w ukrytym oknie przeglądarki, PriceCharting (raw i grading) |
 
 ## Licencja i zastrzeżenia
 
