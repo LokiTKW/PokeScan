@@ -1,7 +1,7 @@
 {
   "name": "pokescan2",
   "productName": "PokeScan 2",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "PokéScan 2 – darmowy skaner kart Pokémon TCG na Windows: telefon jako skaner, rozpoznawanie bez AI, wycena z Cardmarket, Allegro i Vinted, Pokédexy setów.",
   "author": "PokéScan contributors",
   "private": true,

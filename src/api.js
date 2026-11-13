@@ -17,6 +17,8 @@ export const api = {
   },
   card: (id) => fetch(`/api/tcg/card/${encodeURIComponent(id)}`).then(j),
   rate: () => fetch('/api/rate').then(j),
+  graded: ({ name, number, set, variant }) =>
+    fetch(`/api/graded?${new URLSearchParams({ name, number: number || '', set: set || '', variant: variant || '' })}`).then(j),
   prices: (source, { query, must, number }) =>
     fetch(`/api/prices/${source}?${new URLSearchParams({ q: query, must: must || '', number: number || '' })}`).then(j),
   openMarket: (source, query) => fetch('/api/market/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, query }) }),

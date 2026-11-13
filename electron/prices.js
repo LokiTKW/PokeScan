@@ -150,8 +150,31 @@ function showMarketWindow(source, query, parent) {
   win.show();
 }
 
-function destroy() {
-  if (marketWin && !marketWin.isDestroyed()) { marketWin.forceClose = true; marketWin.close(); }
+// Separate hidden window for reading whole pages (PriceCharting), used only when a
+// plain request is refused. Lookups are queued so two pages never share the window.
+let pageWin = null;
+let pageChain = Promise.resolve();
+function fetchHtml(url) {
+  const run = pageChain.then(async () => {
+    if (!pageWin || pageWin.isDestroyed()) {
+      pageWin = new BrowserWindow({ width: 1100, height: 800, show: false, webPreferences: { partition: 'persist:market', contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
+    }
+    try { await pageWin.loadURL(url, { userAgent: pageWin.webContents.getUserAgent().replace(/Electron\/\S+\s?/, '') }); } catch {}
+    let html = '';
+    for (let i = 0; i < 10; i++) {
+      html = await pageWin.webContents.executeJavaScript('document.documentElement.outerHTML', true).catch(() => '');
+      if (/id="full-prices"|id="games_table"|id="product_name"/.test(html)) break;
+      await sleep(1000);
+    }
+    return { url: pageWin.webContents.getURL() || url, html };
+  });
+  pageChain = run.catch(() => {});
+  return run;
 }
 
-module.exports = { lookup, showMarketWindow, destroy, filterItems, summarize, median };
+function destroy() {
+  if (marketWin && !marketWin.isDestroyed()) { marketWin.forceClose = true; marketWin.close(); }
+  if (pageWin && !pageWin.isDestroyed()) pageWin.close();
+}
+
+module.exports = { lookup, showMarketWindow, destroy, fetchHtml, filterItems, summarize, median };

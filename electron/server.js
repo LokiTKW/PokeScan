@@ -12,6 +12,7 @@ const path = require('path');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 const tcg = require('./tcg');
+const graded = require('./graded');
 
 const DEFAULT_PORT = 8766;
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
@@ -343,7 +344,30 @@ function startServer(opts) {
         }
 
         if (p === '/api/rate') {
-          return sendJson(res, 200, { eurPln: await tcg.eurPln() });
+          const [eurPln, usdPln] = await Promise.all([tcg.eurPln(), tcg.usdPln()]);
+          return sendJson(res, 200, { eurPln, usdPln });
+        }
+        if (p === '/api/graded') {
+          // raw + graded prices (PriceCharting, from completed eBay sales, in USD)
+          const q = {
+            name: url.searchParams.get('name') || '',
+            number: url.searchParams.get('number') || '',
+            setName: url.searchParams.get('set') || '',
+            variant: url.searchParams.get('variant') || '',
+            fetchHtml: opts.prices && opts.prices.fetchHtml,
+          };
+          if (!q.name) return sendJson(res, 400, { error: 'name' });
+          try {
+            const [data, usdPln] = await Promise.all([graded.lookup(q), tcg.usdPln()]);
+            if (!data.cached) {
+              const psa = data.found ? (data.companies.find(c => c.id === 'PSA') || {}).ten : null;
+              log(`[graded] "${q.name} ${q.number} ${q.setName}" -> ${data.found ? `${data.title} (${data.set}) raw $${data.raw} PSA10 $${psa}` : 'not found'}`);
+            }
+            return sendJson(res, 200, { ...data, usdPln });
+          } catch (e) {
+            log(`[graded] error ${e.message}`);
+            return sendJson(res, 502, { error: 'graded_unavailable' });
+          }
         }
         if (p === '/api/img') {
           // image proxy so the app can compare card images pixel by pixel

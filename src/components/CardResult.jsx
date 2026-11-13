@@ -51,7 +51,86 @@ export function usePricing(cardId, { auto = true } = {}) {
     return () => { dead = true; };
   }, [cardId, nonce, auto]);
 
-  return { card, rate, market, error, reload: () => setNonce(n => n + 1) };
+  return { card, rate, market, error, reload: () => setNonce(n => n + 1), nonce };
+}
+
+/** Raw + graded prices (PriceCharting, completed eBay sales, USD -> PLN). */
+function useGraded(card, nonce) {
+  const [g, setG] = useState({ loading: true });
+  useEffect(() => {
+    if (!card) { setG({ loading: true }); return; }
+    let dead = false;
+    setG({ loading: true });
+    api.graded({ name: card.name, number: card.localId, set: card.set?.name })
+      .then(d => { if (!dead) setG(d); })
+      .catch(() => { if (!dead) setG({ error: true }); });
+    return () => { dead = true; };
+  }, [card?.id, nonce]);
+  return g;
+}
+
+const GRADE_COLORS = { PSA: '#ff4d6d', BGS: '#c9c9e0', CGC: '#4fa3ff', SGC: '#a8a8a8', TAG: '#3ee6a0' };
+
+function GradedPrices({ g, card }) {
+  const toPln = usd => (usd == null ? null : usd * (g.usdPln || 3.65));
+  const usd = v => (v == null ? '' : `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  const mult = v => (v != null && g.raw ? `×${(v / g.raw).toFixed(v / g.raw < 10 ? 1 : 0)} vs raw` : null);
+  const search = `https://www.pricecharting.com/search-products?q=${encodeURIComponent(`${card?.name || ''} ${parseInt(card?.localId, 10) || card?.localId || ''}`)}&type=prices`;
+
+  let body;
+  if (g.loading) {
+    body = (
+      <div className="graded-grid">
+        {Array.from({ length: 6 }, (_, i) => <div key={i} className="grade"><div className="skeleton" style={{ height: 14, width: '40%' }} /><div className="skeleton" style={{ height: 22, width: '70%', marginTop: 10 }} /></div>)}
+      </div>
+    );
+  } else if (g.error || !g.found) {
+    body = <div className="sub" style={{ marginTop: 12, fontSize: 13, color: 'var(--text-2)' }}>{g.error ? 'Nie udało się pobrać cen po gradingu. Sprawdź internet i odśwież ceny.' : 'Brak tej karty w bazie cen gradingowych.'}</div>;
+  } else {
+    const maxTen = Math.max(...g.companies.map(c => c.ten || 0));
+    body = (
+      <>
+        <div className="graded-grid">
+          <div className="grade raw" style={{ '--g': 'var(--accent-2)' }}>
+            <div className="co">RAW<small>bez gradingu</small></div>
+            <div className="v">{pln(toPln(g.raw))}</div>
+            <div className="s">{g.raw != null ? usd(g.raw) : 'brak sprzedaży'}</div>
+          </div>
+          {g.companies.map(c => (
+            <div key={c.id} className={`grade ${c.ten && c.ten === maxTen ? 'best' : ''}`} style={{ '--g': GRADE_COLORS[c.id] }} title={c.full}>
+              <div className="co">{c.label} 10</div>
+              <div className="v">{c.ten != null ? pln(toPln(c.ten)) : '–'}</div>
+              <div className="s">{c.ten != null ? usd(c.ten) : 'brak sprzedaży'}</div>
+              {c.best?.value != null && <div className="s">{c.best.label.replace(`${c.id} 10 `, '')}: {pln(toPln(c.best.value))}</div>}
+              {mult(c.ten) && <span className="x">{mult(c.ten)}</span>}
+            </div>
+          ))}
+        </div>
+        <div className="graded-foot">
+          {[['9.5', 'Ocena 9.5'], ['9', 'Ocena 9'], ['8', 'Ocena 8'], ['7', 'Ocena 7']].map(([k, label]) => g.grades?.[k] != null && (
+            <span key={k} className="chip" title="Dowolna firma gradingowa">{label}: {pln(toPln(g.grades[k]))}</span>
+          ))}
+        </div>
+        {!g.setMatch && <div className="graded-note">Dopasowano „{g.title}” z setu „{g.set}”. Sprawdź, czy to ta sama karta.</div>}
+      </>
+    );
+  }
+
+  return (
+    <div className="graded">
+      <div className="graded-head">
+        <div>
+          <h3>Cena raw i po gradingu</h3>
+          <div className="sub">
+            Ocena 10 w 5 największych firmach gradingowych. Ceny z zakończonych sprzedaży na eBay (PriceCharting)
+            {g.usdPln ? `, kurs NBP ${g.usdPln.toFixed(2)} zł/$` : ''}.
+          </div>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={() => api.openExternal(g.url || search)} title="Otwórz w PriceCharting"><ExternalLink size={13} />PriceCharting</button>
+      </div>
+      {body}
+    </div>
+  );
 }
 
 function SourceTile({ id, value, sub, count, range, loading, note, onOpen, children }) {
@@ -87,7 +166,8 @@ function SourceTile({ id, value, sub, count, range, loading, note, onOpen, child
 }
 
 export default function CardResult({ cardId, photoUrl, confidence, alternatives = [], onPick, onSearch, onAdd, item, onUpdateItem, onRemove, compact }) {
-  const { card, rate, market, error, reload } = usePricing(cardId);
+  const { card, rate, market, error, reload, nonce } = usePricing(cardId);
+  const graded = useGraded(card, nonce);
   const [condition, setCondition] = useState(item?.condition || 'NM');
   const [variant, setVariant] = useState(item?.variant || 'normal');
   const [added, setAdded] = useState(false);
@@ -128,7 +208,8 @@ export default function CardResult({ cardId, photoUrl, confidence, alternatives 
     const snapshot = {
       cardId: card.id, name: card.name, localId: card.localId, image: card.image, imageHigh: card.imageHigh,
       set: card.set, rarity: card.rarity, condition, variant,
-      prices: { cardmarketEur: cmEur, cardmarketPln: cmPln, allegro: market.allegro?.median ?? null, vinted: market.vinted?.median ?? null, estimate: est?.value ?? null, at: new Date().toISOString(), rate },
+      prices: { cardmarketEur: cmEur, cardmarketPln: cmPln, allegro: market.allegro?.median ?? null, vinted: market.vinted?.median ?? null, estimate: est?.value ?? null, at: new Date().toISOString(), rate,
+        graded: graded.found ? { usdPln: graded.usdPln, raw: graded.raw, ...Object.fromEntries(graded.companies.map(c => [c.id, c.ten])), url: graded.url } : null },
       qty: 1,
     };
     if (item) await onUpdateItem?.({ condition, variant, prices: snapshot.prices });
@@ -178,7 +259,7 @@ export default function CardResult({ cardId, photoUrl, confidence, alternatives 
 
         <div className="estimate">
           <div className="shine" />
-          <div className="label">Szacowana wartość</div>
+          <div className="label">Szacowana wartość (raw, rynek w Polsce)</div>
           {est ? (
             <>
               <div className="big holo-text">{pln(est.value)}</div>
@@ -205,6 +286,8 @@ export default function CardResult({ cardId, photoUrl, confidence, alternatives 
           {card ? marketTile('allegro') : <SourceTile id="allegro" loading note="Czekam…" />}
           {card ? marketTile('vinted') : <SourceTile id="vinted" loading note="Czekam…" />}
         </div>
+
+        {card && <GradedPrices g={graded} card={card} />}
 
         <div className="options-row">
           <div>

@@ -1,5 +1,5 @@
 // Free card database: TCGdex (https://tcgdex.dev) – no key, includes Cardmarket prices.
-// Exchange rate EUR→PLN: NBP (Narodowy Bank Polski) public API.
+// Exchange rates EUR→PLN and USD→PLN: NBP (Narodowy Bank Polski) public API.
 
 const API = process.env.TCGDEX_API || 'https://api.tcgdex.net/v2/en';
 
@@ -125,16 +125,19 @@ async function cardDetail(id) {
   };
 }
 
-let rate = null;
-async function eurPln() {
-  if (rate && Date.now() - rate.at < 6 * 3600 * 1000) return rate.value;
+const rates = {};
+async function nbpRate(code, fallback) {
+  const hit = rates[code];
+  if (hit && Date.now() - hit.at < 6 * 3600 * 1000) return hit.value;
   try {
-    const d = await getJson('https://api.nbp.pl/api/exchangerates/rates/a/eur/?format=json', 6 * 3600 * 1000);
+    const d = await getJson(`https://api.nbp.pl/api/exchangerates/rates/a/${code}/?format=json`, 6 * 3600 * 1000);
     const v = d?.rates?.[0]?.mid;
-    if (v) { rate = { value: v, at: Date.now(), date: d.rates[0].effectiveDate }; return v; }
+    if (v) { rates[code] = { value: v, at: Date.now(), date: d.rates[0].effectiveDate }; return v; }
   } catch {}
-  return rate?.value || 4.25;
+  return hit?.value || fallback;
 }
+const eurPln = () => nbpRate('eur', 4.25);
+const usdPln = () => nbpRate('usd', 3.65);
 
 /** Every card (brief), for building the visual index. */
 async function allCards() {
@@ -164,4 +167,4 @@ async function setWithCards(id) {
   };
 }
 
-module.exports = { matchCards, searchByName, cardDetail, eurPln, allSets, allCards, setList, setWithCards };
+module.exports = { matchCards, searchByName, cardDetail, eurPln, usdPln, allSets, allCards, setList, setWithCards };
